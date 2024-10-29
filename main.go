@@ -20,10 +20,10 @@ type Part struct {
 
 // TrackReader tracks bytes read
 type TrackReader struct {
-	Reader            io.ReadCloser
-	ByteRead          chan int
-	TotalBytesRead    int
-	ByteReadPerSecond chan int
+	Reader         io.ReadCloser
+	TotalBytesRead int
+	ByteRead,
+	ByteReadPerSecond chan<- int
 }
 
 // Read wraps Read function to count bytes
@@ -42,10 +42,10 @@ func (t *TrackReader) Close() error {
 type myTransport struct {
 	Transport http.RoundTripper
 	byteRead,
-	byteReadPerSecond chan int
+	byteReadPerSecond chan<- int
 }
 
-func NewMyTransport(byteRead, byteReadPerSecond chan int) *myTransport {
+func NewMyTransport(byteRead, byteReadPerSecond chan<- int) *myTransport {
 	return &myTransport{
 		Transport:         http.DefaultTransport,
 		byteRead:          byteRead,
@@ -66,20 +66,18 @@ func (t *myTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	resp.Body = trackReader
 	go func() {
-		for {
-			select {
-			case <-time.After(time.Second):
-				trackReader.ByteReadPerSecond <- trackReader.TotalBytesRead
-				trackReader.TotalBytesRead = 0
-			}
+		tick := time.NewTicker(time.Second)
+		for range tick.C {
+			trackReader.ByteReadPerSecond <- trackReader.TotalBytesRead
+			trackReader.TotalBytesRead = 0
 		}
 	}()
 
 	return resp, nil
 }
 
-// downloadPart downloads a specific part of the file from `url`
-func downloadPart(url string, part Part, wg *sync.WaitGroup, errChan chan error, byteChan, byteReadPerSecond chan int) {
+// download downloads a specific part of the file from `url`
+func (part *Part) download(url string, wg *sync.WaitGroup, errChan chan<- error, byteChan, byteReadPerSecond chan<- int) {
 	defer wg.Done()
 
 	req, err := http.NewRequest("GET", url, nil)
@@ -133,13 +131,13 @@ func mergeParts(parts []Part, outputFileName string) error {
 		if err != nil {
 			return err
 		}
-		in.Close()
+		_ = in.Close()
 	}
 	return nil
 }
 
 func main() {
-	start := time.Now()
+	startingTime := time.Now()
 
 	args := os.Args
 
@@ -187,8 +185,8 @@ func main() {
 	byteChans := make([]chan int, numParts)
 	bpsChans := make([]chan int, numParts)
 
-	stateHolders := make([]int, numParts)
-	bpsHolders := make([]int, numParts)
+	totalByteReceived := make([]int, numParts)
+	downloadSpeed := make([]int, numParts)
 
 	for i := 0; i < numParts; i++ {
 		byteChans[i] = make(chan int)
@@ -196,48 +194,48 @@ func main() {
 		go func(j int) {
 			for {
 				go func(k int) {
-					stateHolders[k] += <-byteChans[k]
+					totalByteReceived[k] += <-byteChans[k]
 				}(j)
 				go func(k int) {
-					bpsHolders[j] = <-bpsChans[j]
+					downloadSpeed[j] = <-bpsChans[j]
 				}(j)
 			}
 		}(i)
 	}
 
 	go func() {
-		for {
-			time.Sleep(100 * time.Millisecond)
+		tick := time.NewTicker(100 * time.Millisecond)
+		for range tick.C {
 			fmt.Print("\033[H\033[2J")
 
 			for i := 0; i < numParts; i++ {
-				whole := parts[i].End - parts[i].Start
-				var completed int
-				if stateHolders[i] != 0 {
-					completed = (stateHolders[i] * 100) / int(whole)
+				partByteSize := parts[i].End - parts[i].Start
+				var completedByteSize int
+				if totalByteReceived[i] != 0 {
+					completedByteSize = (totalByteReceived[i] * 100) / int(partByteSize)
 				}
 				fmt.Printf("part %d - %d%% | speed: %s | %s of %s completed.\n",
 					i,
-					completed,
-					convertByteSizeToHumanReadable(bpsHolders[i]),
-					convertByteSizeToHumanReadable(stateHolders[i]),
-					convertByteSizeToHumanReadable(int(whole)),
+					completedByteSize,
+					convertByteSizeToHumanReadable(downloadSpeed[i]),
+					convertByteSizeToHumanReadable(totalByteReceived[i]),
+					convertByteSizeToHumanReadable(int(partByteSize)),
 				)
 			}
 		}
 	}()
 	for i, part := range parts {
 		wg.Add(1)
-		go downloadPart(url, part, &wg, errChan, byteChans[i], bpsChans[i])
+		go part.download(url, &wg, errChan, byteChans[i], bpsChans[i])
 	}
 	wg.Wait()
 	close(errChan)
 
-	end := time.Since(start)
+	end := time.Since(startingTime)
 
 	// Check for any errors in the download
 	if len(errChan) > 0 {
-		for err := range errChan {
+		for err = range errChan {
 			fmt.Println("Error during download:", err)
 		}
 		return
@@ -249,14 +247,14 @@ func main() {
 		outputFilePath = filepath.Join(dir, outputFilePath)
 	}
 	// Step 4: Merge parts into a single file
-	if err := mergeParts(parts, outputFilePath); err != nil {
+	if err = mergeParts(parts, outputFilePath); err != nil {
 		fmt.Println("Error merging parts:", err)
 		return
 	}
 
 	// Clean up part files
 	for _, part := range parts {
-		os.Remove(part.FilePath)
+		_ = os.Remove(part.FilePath)
 	}
 
 	fmt.Printf("Download completed successfully in %s at %s.\n", end, outputFilePath)
