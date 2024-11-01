@@ -17,3 +17,5 @@ Once you installed application, run to download file using command "dl https://f
 - [ ] decrease download speed to consume less i/o and network bandwidth
 - [ ] build cross platform gui application
 - [ ] dynamic download workers count 
+- [ ] add graceful shutdown
+- [ ] cancellable download threads
