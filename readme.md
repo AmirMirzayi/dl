@@ -1,8 +1,13 @@
 dl is simple command-line file downloader with support multi-threaded requests.
 
+## Uses
+You can install this tool using go command "go install https://github.com/AmirMirzayi/dl" or ddownload binary from Release.
+once you installed application, run to download file using command "dl https://file-examples.com/wp-content/storage/2017/04/file_example_MP4_1920_18MG.mp4" in Terminal.
+
+
 ### Todo
 - [ ] optional download file-name by user input
-- [ ] save temp parts by given user's file-name
+- [X] save temp parts by given user's file-name
 - [ ] remove temp parts if download fails
 - [ ] configurable http client(proxy, timeout, download path)
 - [ ] retry failed download
