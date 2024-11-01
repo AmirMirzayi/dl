@@ -1,8 +1,8 @@
-dl is simple command-line file downloader with support multi-threaded requests.
+dl is a simple command-line file downloader with support multi-threaded requests.
 
 ## Uses
-You can install this tool using go command "go install https://github.com/AmirMirzayi/dl" or ddownload binary from Release.
-once you installed application, run to download file using command "dl https://file-examples.com/wp-content/storage/2017/04/file_example_MP4_1920_18MG.mp4" in Terminal.
+You can install this tool using go command "go install https://github.com/AmirMirzayi/dl" or download binary from Release.
+Once you installed application, run to download file using command "dl https://file-examples.com/wp-content/storage/2017/04/file_example_MP4_1920_18MG.mp4" in Terminal.
 
 
 ### Todo

@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -208,12 +209,19 @@ func main() {
 				if partTotalByteReceived[i] != 0 {
 					downloadedPercent = (partTotalByteReceived[i] * 100) / int(partByteSize)
 				}
-				fmt.Printf("part %d - %d%% | speed: %s | %s of %s completed.\n",
+
+				progressBarWidth := 50 // should be divisible to 100
+				progressBar := strings.Repeat("", 100-int(downloadedPercent)/(100/progressBarWidth))
+				progressBar += strings.Repeat("█", int(downloadedPercent)/(100/progressBarWidth))
+
+				fmt.Printf("part %d - %d%% | speed: %s | %s of %s ✓ [%-*s]\n",
 					i+1,
 					downloadedPercent,
-					convertFloatByteSizeToHumanReadable(currentSpeed[i]),
+					convertFloatByteSizeToHumanReadable(downloadSpeed[i]),
 					convertByteSizeToHumanReadable(partTotalByteReceived[i]),
 					convertByteSizeToHumanReadable(int(partByteSize)),
+					progressBarWidth,
+					progressBar,
 				)
 			}
 		}
