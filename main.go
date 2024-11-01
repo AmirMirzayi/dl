@@ -217,9 +217,9 @@ func main() {
 				fmt.Printf("part %d - %d%% | speed: %s | %s of %s ✓ [%-*s]\n",
 					i+1,
 					downloadedPercent,
-					convertFloatByteSizeToHumanReadable(downloadSpeed[i]),
-					convertByteSizeToHumanReadable(partTotalByteReceived[i]),
-					convertByteSizeToHumanReadable(int(partByteSize)),
+					convertByteSizeToHumanReadable(downloadSpeed[i]),
+					convertByteSizeToHumanReadable(float64(partTotalByteReceived[i])),
+					convertByteSizeToHumanReadable(float64(partByteSize)),
 					progressBarWidth,
 					progressBar,
 				)
@@ -259,7 +259,7 @@ func main() {
 
 	fmt.Printf("%s (%s) Downloaded on %s in %s.",
 		outputFileName,
-		convertByteSizeToHumanReadable(int(fileSize)),
+		convertByteSizeToHumanReadable(float64(fileSize)),
 		filepath.Dir(outputFilePath),
 		downloadTakenTime,
 	)
@@ -269,23 +269,7 @@ var sizes = []string{"B", "kB", "MB", "GB", "TB", "PB", "EB"}
 
 const base = 1024
 
-func convertByteSizeToHumanReadable(sizeInByte int) string {
-	unitsLimit := len(sizes)
-	i := 0
-
-	size := float32(sizeInByte)
-	for size >= base && i < unitsLimit {
-		size = size / base
-		i++
-	}
-	f := "%.0f %s"
-	if i > 1 {
-		f = "%.2f %s"
-	}
-	return fmt.Sprintf(f, size, sizes[i])
-}
-
-func convertFloatByteSizeToHumanReadable(size float64) string {
+func convertByteSizeToHumanReadable(size float64) string {
 	unitsLimit := len(sizes)
 	i := 0
 
