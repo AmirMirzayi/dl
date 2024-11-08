@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -12,25 +13,39 @@ import (
 )
 
 func main() {
-	startingTime := time.Now()
-
 	args := os.Args
+
+	// 1st args is application running path, 2nd(or last one) is download url
+	argURL := args[len(args)-1]
 
 	if len(args) < 2 {
 		fmt.Println("download link argument is required")
 		return
 	}
 
-	downloadURL := args[1]
-	outputFileName := filepath.Base(downloadURL)
-	outputFileName, err := url.QueryUnescape(outputFileName)
+	argFileName := flag.String("o", "", "output file name")
+	flag.Parse()
+
+	fileName := filepath.Base(argURL)
+	if *argFileName != "" {
+		// trim last dot character to cover mistyping
+		fileName = strings.TrimRight(*argFileName, ".")
+		// save fileName by download link's file type if arg hasn't
+		if filepath.Ext(fileName) == "" {
+			fileName += filepath.Ext(filepath.Base(argURL))
+		}
+	}
+
+	outputFileName, err := url.QueryUnescape(fileName)
 	if err != nil {
 		fmt.Println("download link is not valid :(")
 		return
 	}
 
+	startingTime := time.Now()
+
 	// Step 1: Get file size
-	resp, err := http.Head(downloadURL)
+	resp, err := http.Head(argURL)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -97,8 +112,8 @@ func main() {
 				}
 
 				progressBarWidth := 25 // should be divisible to 100
-				progressBar := strings.Repeat("", 100-int(downloadedPercent)/(100/progressBarWidth))
-				progressBar += strings.Repeat("█", int(downloadedPercent)/(100/progressBarWidth))
+				progressBar := strings.Repeat("", 100-downloadedPercent/(100/progressBarWidth))
+				progressBar += strings.Repeat("█", downloadedPercent/(100/progressBarWidth))
 
 				fmt.Printf("[%-*s] #%d - %d%% | speed: %s | %s of %s ✓\n",
 					progressBarWidth,
@@ -115,7 +130,7 @@ func main() {
 
 	for i, part := range parts {
 		wg.Add(1)
-		go part.download(downloadURL, &wg, errChan, receivingByteChans[i])
+		go part.download(argURL, &wg, errChan, receivingByteChans[i])
 	}
 	wg.Wait()
 	close(errChan)
