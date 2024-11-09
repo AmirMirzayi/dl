@@ -5,16 +5,22 @@ import (
 	"net/http"
 )
 
+type readPart struct {
+	partID   int
+	byteSize int
+}
+
 // TrackReader tracks bytes read
 type TrackReader struct {
 	Reader   io.ReadCloser
-	ByteRead chan int
+	ByteRead chan readPart
+	partID   int
 }
 
 // Read wraps Read function to count bytes
 func (t *TrackReader) Read(p []byte) (int, error) {
 	n, err := t.Reader.Read(p)
-	t.ByteRead <- n
+	t.ByteRead <- readPart{partID: t.partID, byteSize: n}
 	return n, err
 }
 
@@ -25,13 +31,15 @@ func (t *TrackReader) Close() error {
 
 type myTransport struct {
 	Transport http.RoundTripper
-	byteRead  chan int
+	byteRead  chan readPart
+	partID    int
 }
 
-func NewMyTransport(byteRead chan int) *myTransport {
+func NewMyTransport(byteRead chan readPart, partID int) *myTransport {
 	return &myTransport{
 		Transport: http.DefaultTransport,
 		byteRead:  byteRead,
+		partID:    partID,
 	}
 }
 
@@ -44,6 +52,7 @@ func (t *myTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	trackReader := &TrackReader{
 		Reader:   resp.Body,
 		ByteRead: t.byteRead,
+		partID:   t.partID,
 	}
 	resp.Body = trackReader
 

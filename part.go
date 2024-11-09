@@ -10,13 +10,14 @@ import (
 
 // Part defines the range and file path for a part of the file
 type Part struct {
+	ID       int
 	Start    int64
 	End      int64
 	FilePath string
 }
 
 // download downloads a specific part of the file from `url`
-func (part *Part) download(downloadURL string, wg *sync.WaitGroup, errChan chan error, byteChan chan int) {
+func (part *Part) download(downloadURL string, wg *sync.WaitGroup, errChan chan error, byteChan chan readPart) {
 	defer wg.Done()
 
 	req, err := http.NewRequest("GET", downloadURL, nil)
@@ -28,7 +29,7 @@ func (part *Part) download(downloadURL string, wg *sync.WaitGroup, errChan chan 
 	// download specific bytes offset(start,end) of part
 	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", part.Start, part.End))
 
-	client := &http.Client{Transport: NewMyTransport(byteChan)}
+	client := &http.Client{Transport: NewMyTransport(byteChan, part.ID)}
 
 	resp, err := client.Do(req)
 

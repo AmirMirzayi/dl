@@ -71,6 +71,7 @@ func main() {
 			end = fileSize
 		}
 		part := Part{
+			ID:       i,
 			Start:    start,
 			End:      end,
 			FilePath: fmt.Sprintf("%s-part-%d.tmp", outputFileName, i),
@@ -81,59 +82,68 @@ func main() {
 	// Step 3: Download each part concurrently
 	var wg sync.WaitGroup
 	errChan := make(chan error, numParts)
+	doneChan := make(chan struct{})
 
-	receivingByteChans := make([]chan int, numParts)
+	receivingByteChan := make(chan readPart)
 	partTotalByteReceived := make([]int, numParts)
 	downloadSpeed := make([]float64, numParts)
 	lastTimeByteReceived := make([]time.Time, numParts)
 
-	for i := 0; i < numParts; i++ {
-		receivingByteChans[i] = make(chan int)
-		go func(j int) {
-			for {
-				receivedByteSize := <-receivingByteChans[j]
-				partTotalByteReceived[j] += receivedByteSize
-				downloadSpeed[j] = float64(receivedByteSize) / time.Since(lastTimeByteReceived[j]).Seconds()
-				lastTimeByteReceived[j] = time.Now()
-			}
-		}(i)
-	}
+	go func() {
+		for received := range receivingByteChan {
+			pID := received.partID
+			partTotalByteReceived[pID] += received.byteSize
+			downloadSpeed[pID] = float64(received.byteSize) / time.Since(lastTimeByteReceived[pID]).Seconds()
+			lastTimeByteReceived[pID] = time.Now()
+		}
+	}()
 
 	go func() {
 		tick := time.NewTicker(100 * time.Millisecond)
-		for range tick.C {
-			fmt.Print("\033[H\033[2J")
+		defer tick.Stop()
 
-			for i := 0; i < numParts; i++ {
-				partByteSize := parts[i].End - parts[i].Start
-				var downloadedPercent int
-				if partTotalByteReceived[i] != 0 {
-					downloadedPercent = (partTotalByteReceived[i] * 100) / int(partByteSize)
+		for {
+			select {
+			case <-tick.C:
+				// clear screen
+				fmt.Print("\033[H\033[2J")
+
+				for i := 0; i < numParts; i++ {
+					partByteSize := parts[i].End - parts[i].Start
+					var downloadedPercent int
+					if partTotalByteReceived[i] != 0 {
+						downloadedPercent = (partTotalByteReceived[i] * 100) / int(partByteSize)
+					}
+
+					progressBarWidth := 25 // should be divisible to 100
+					progressBar := strings.Repeat("", 100-downloadedPercent/(100/progressBarWidth))
+					progressBar += strings.Repeat("█", downloadedPercent/(100/progressBarWidth))
+
+					fmt.Printf("[%-*s] #%d - %d%% | speed: %s | %s of %s ✓\n",
+						progressBarWidth,
+						progressBar,
+						i+1,
+						downloadedPercent,
+						convertByteSizeToHumanReadable(downloadSpeed[i]),
+						convertByteSizeToHumanReadable(float64(partTotalByteReceived[i])),
+						convertByteSizeToHumanReadable(float64(partByteSize)),
+					)
 				}
 
-				progressBarWidth := 25 // should be divisible to 100
-				progressBar := strings.Repeat("", 100-downloadedPercent/(100/progressBarWidth))
-				progressBar += strings.Repeat("█", downloadedPercent/(100/progressBarWidth))
-
-				fmt.Printf("[%-*s] #%d - %d%% | speed: %s | %s of %s ✓\n",
-					progressBarWidth,
-					progressBar,
-					i+1,
-					downloadedPercent,
-					convertByteSizeToHumanReadable(downloadSpeed[i]),
-					convertByteSizeToHumanReadable(float64(partTotalByteReceived[i])),
-					convertByteSizeToHumanReadable(float64(partByteSize)),
-				)
+			case <-doneChan:
+				return
 			}
 		}
 	}()
 
-	for i, part := range parts {
+	for _, part := range parts {
 		wg.Add(1)
-		go part.download(argURL, &wg, errChan, receivingByteChans[i])
+		go part.download(argURL, &wg, errChan, receivingByteChan)
 	}
+
 	wg.Wait()
 	close(errChan)
+	close(doneChan)
 
 	downloadTakenTime := time.Since(startingTime)
 
