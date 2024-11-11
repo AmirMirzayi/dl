@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -13,6 +15,9 @@ import (
 )
 
 func main() {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
 	args := os.Args
 
 	// 1st args is application running path, 2nd(or last one) is download url
@@ -138,7 +143,7 @@ func main() {
 
 	for _, part := range parts {
 		wg.Add(1)
-		go part.download(argURL, &wg, errChan, receivingByteChan)
+		go part.download(ctx, argURL, &wg, errChan, receivingByteChan)
 	}
 
 	wg.Wait()

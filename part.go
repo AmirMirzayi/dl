@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,10 +18,10 @@ type Part struct {
 }
 
 // download downloads a specific part of the file from `url`
-func (part *Part) download(downloadURL string, wg *sync.WaitGroup, errChan chan error, byteChan chan readPart) {
+func (part *Part) download(ctx context.Context, downloadURL string, wg *sync.WaitGroup, errChan chan error, byteChan chan readPart) {
 	defer wg.Done()
 
-	req, err := http.NewRequest("GET", downloadURL, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", downloadURL, nil)
 	if err != nil {
 		errChan <- err
 		return
